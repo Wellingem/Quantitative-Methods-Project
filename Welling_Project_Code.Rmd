@@ -15,13 +15,12 @@ epsilon <- rnorm(40, mean = 0, sd = 1)
 y <- x1^2 + epsilon
 
 plot(y ~ x1)
-plot(density(x1))
-
 ```
 
 
-Models for the thermal performance curve:
-
+#Models for the thermal performance curve:
+This first approach will fit built in models and a few custom built models, and the
+library will calculate AIC values. 
 
 ```{r}
 #install thermal performance curve package
@@ -52,10 +51,6 @@ plot(weights)
 weights
 ```
 
-```{r}
-# Interpolate trait value for some temperature
-interpolateAtTemp(fits, 26)
-```
 
 ```{r}
 #Creating a model for the quadratic function
@@ -120,36 +115,6 @@ myGaussian
 ```
 
 
-#Creating a model for the Modified Gaussian function
-#1) Function
-mFunction = function(x, params) {
-# params model parameters, a, b, c, d
-    a = params[["a"]]
-    b = params[["b"]]
-    c = params[["c"]]
-    d = params[["d"]]
-    return( a * (exp( ((-0.5) * ((abs(x - b)) / c )^d))) )
-}
-
-#2) Name
-mName = "modGaussian"
-
-#3) Formula
-mFormula = y ~ a * (exp( ((-0.5) * ((abs(x - b)) / c )^d )))
-
-# 4) Model parameters
-mParams = c("a", "b", "c", "d")
-
-# 5) List of starting values for the parameters
-mStarting = list(a = 2, b = 0, c = 2, d = 2)
-
-# Create the customModel object
-modGaussian = buildModel(mFunction, mName, mFormula, mParams, mStarting)
-
-# Summary
-modGaussian
-
-
 ```{r}
 #Fit Custom models
 
@@ -157,7 +122,6 @@ modGaussian
 models = getModelLibrary()[c("candidate04")]
 models[["Quadratic"]] = Quadratic
 models[["myGaussian"]] = myGaussian
-#models[["modGaussian"]] = modGaussian
 fits2 = fitModels(models, x1, y)
 plot(fits2)
 
@@ -167,9 +131,17 @@ weights2
 plot(weights2)
 
 ```
+```{r}
+
+```
+
+
+
+#Maximum Likelihood Approaches
+Using maximum likelihood approaches, we can get another model-fit test. 
 
 ```{r}
-#Trying out maximum likelihood approaches
+#Building a max likelihood approach for a linear model
 
 Linear_max <- function(p, X, Y) {
   b0 <- p[1]; b1 <- p[2]; sd <- p[3]
@@ -184,6 +156,8 @@ linear_optim
 ```
 
 ```{r}
+#Max likelihood for quadratic
+
 Quadratic_max <- function(p, X, Y) {
   a <- p[1]; b <- p[2]; c <- p[3]
   
@@ -197,25 +171,36 @@ quadratic_optim
 ```
 
 ```{r}
+#Maximum likelihood for Gaussian
+
 Gaussian_max <- function(p, X, Y) {
-  a <- p[1]; b <- p[2]; c <- p[3]
+  a <- p[1]; b <- p[2]; c <- p[3]; sd <- p[4]
   
   rsd3 <- a * (exp( ((-0.5) * ((abs(X - b)) / c )^2))) - Y
   
-  -sum(dexp(rsd3, rate = X/Y, log = T)) 
+  -sum(dnorm(rsd3, mean = 0, sd = sd, log = T)) 
 }
 
-gaussian_optim <- optim(c(1, 1, 1), Gaussian_max, X = x1, Y = y)
+gaussian_optim <- optim(c(0, 0, 0, 1), Gaussian_max, X = x1, Y = y)
 gaussian_optim
 ```
+```{r}
+#Maximum Likelihood for modified Gaussian
 
-Maxnet--library for species distribution models
+modGaussian_max <- function(p, X, Y) {
+  a <- p[1]; b <- p[2]; c <- p[3]; d <- p[4]; sd <- p[5]
+  
+  rsd4 <- a * (exp( ((-0.5) * ((abs(X - b)) / c )^d))) - Y
+  
+  -sum(dnorm(rsd4, mean = 0, sd = sd, log = T)) 
+}
 
-library(maxnet)
-data(bradypus)
-p <- bradypus$presence
-data <- bradypus[,-1]
-mod <- maxnet(p, data)
-plot(mod, type="cloglog")
-mod <- maxnet(p, data, maxnet.formula(p, data, classes="lq"))
-plot(mod, "tmp6190_ann")
+gaussian_optim <- optim(c(0, 0, 0, 2, 1), modGaussian_max, X = x1, Y = y)
+gaussian_optim
+```
+```{r}
+#Maximum Likelihood for Weibull 
+
+
+```
+
