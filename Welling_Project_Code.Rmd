@@ -7,3 +7,215 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+Simulate data for project code:
+```{r}
+set.seed(40)
+x1 <- runif(40, min = 20, max = 34)
+epsilon <- rnorm(40, mean = 0, sd = 1)
+y <- x1^2 + epsilon
+
+plot(y ~ x1)
+plot(density(x1))
+
+```
+
+
+Models for the thermal performance curve:
+
+
+```{r}
+#install thermal performance curve package
+library(devtools)
+install_github("mdjbru-R-packages/thermPerf")
+```
+
+```{r}
+#call library
+library(thermPerf)
+
+# Plot the raw data
+plot(x1, y, pch = 21, bg = "grey")
+```
+
+
+```{r}
+#fit the models in the library to the data
+fits = fitModels(getModelLibrary(), x1, y)
+plot(fits)
+```
+
+```{r}
+#calculate AIC values for the models
+weights = calculateAIC(fits)
+plot(weights)
+
+weights
+```
+
+```{r}
+# Interpolate trait value for some temperature
+interpolateAtTemp(fits, 26)
+```
+
+```{r}
+#Creating a model for the quadratic function
+#1) Function
+mFunction = function(x, params) {
+# params model parameters, a, b, c
+    a = params[["a"]]
+    b = params[["b"]]
+    c = params[["c"]]
+    return(a * x^2 + b * x + c)
+}
+
+#2) Name
+mName = "Quadratic"
+
+#3) Formula
+mFormula = y ~ a * x^2 + b * x + c
+
+# 4) Model parameters
+mParams = c("a", "b", "c")
+
+# 5) List of starting values for the parameters
+mStarting = list(a = 1, b = 1, c = 1)
+
+# Create the customModel object
+Quadratic = buildModel(mFunction, mName, mFormula, mParams, mStarting)
+
+# Summary
+Quadratic
+```
+
+
+
+```{r}
+#Creating a model for the Gaussian function
+#1) Function
+mFunction = function(x, params) {
+# params model parameters, a, b, c
+    a = params[["a"]]
+    b = params[["b"]]
+    c = params[["c"]]
+    return( a * (exp( ((-0.5) * ((abs(x - b)) / c )^2))) )
+}
+
+#2) Name
+mName = "myGaussian"
+
+#3) Formula
+mFormula = y ~ a * (exp( ((-0.5) * ((abs(x - b)) / c )^2)))
+
+# 4) Model parameters
+mParams = c("a", "b", "c")
+
+# 5) List of starting values for the parameters
+mStarting = list(a = 1, b = 1, c = 1)
+
+# Create the customModel object
+myGaussian = buildModel(mFunction, mName, mFormula, mParams, mStarting)
+
+# Summary
+myGaussian
+```
+
+
+#Creating a model for the Modified Gaussian function
+#1) Function
+mFunction = function(x, params) {
+# params model parameters, a, b, c, d
+    a = params[["a"]]
+    b = params[["b"]]
+    c = params[["c"]]
+    d = params[["d"]]
+    return( a * (exp( ((-0.5) * ((abs(x - b)) / c )^d))) )
+}
+
+#2) Name
+mName = "modGaussian"
+
+#3) Formula
+mFormula = y ~ a * (exp( ((-0.5) * ((abs(x - b)) / c )^d )))
+
+# 4) Model parameters
+mParams = c("a", "b", "c", "d")
+
+# 5) List of starting values for the parameters
+mStarting = list(a = 2, b = 0, c = 2, d = 2)
+
+# Create the customModel object
+modGaussian = buildModel(mFunction, mName, mFormula, mParams, mStarting)
+
+# Summary
+modGaussian
+
+
+```{r}
+#Fit Custom models
+
+#Fit the model, along with the best one from the original model library
+models = getModelLibrary()[c("candidate04")]
+models[["Quadratic"]] = Quadratic
+models[["myGaussian"]] = myGaussian
+#models[["modGaussian"]] = modGaussian
+fits2 = fitModels(models, x1, y)
+plot(fits2)
+
+#Get AIC values
+weights2 = calculateAIC(fits2)
+weights2
+plot(weights2)
+
+```
+
+```{r}
+#Trying out maximum likelihood approaches
+
+Linear_max <- function(p, X, Y) {
+  b0 <- p[1]; b1 <- p[2]; sd <- p[3]
+  
+  rsd <- (b0 + b1*X ) - Y
+  
+  -sum(dnorm(rsd, mean = 0, sd = sd, log = T)) 
+}
+
+linear_optim <- optim(c(1, 0, 5), Linear_max, X = x1, Y = y)
+linear_optim
+```
+
+```{r}
+Quadratic_max <- function(p, X, Y) {
+  a <- p[1]; b <- p[2]; c <- p[3]
+  
+  rsd2 <- (a*(X^2) + b*X + c) - Y
+  
+  -sum(dexp(rsd2, rate = X/Y, log = T))
+}
+
+quadratic_optim <- optim(c(1, 1, 1), Quadratic_max, X = x1, Y = y)
+quadratic_optim
+```
+
+```{r}
+Gaussian_max <- function(p, X, Y) {
+  a <- p[1]; b <- p[2]; c <- p[3]
+  
+  rsd3 <- a * (exp( ((-0.5) * ((abs(X - b)) / c )^2))) - Y
+  
+  -sum(dexp(rsd3, rate = X/Y, log = T)) 
+}
+
+gaussian_optim <- optim(c(1, 1, 1), Gaussian_max, X = x1, Y = y)
+gaussian_optim
+```
+
+Maxnet--library for species distribution models
+
+library(maxnet)
+data(bradypus)
+p <- bradypus$presence
+data <- bradypus[,-1]
+mod <- maxnet(p, data)
+plot(mod, type="cloglog")
+mod <- maxnet(p, data, maxnet.formula(p, data, classes="lq"))
+plot(mod, "tmp6190_ann")
